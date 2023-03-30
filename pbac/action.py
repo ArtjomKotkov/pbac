@@ -1,6 +1,5 @@
-from base import Executable
-
-from models import EntityPack
+from .base import Executable
+from .models import EntityPack
 
 
 class MetaAction(type):
@@ -8,7 +7,8 @@ class MetaAction(type):
         return ActionResolver(action)
 
 
-class Action(metaclass=MetaAction): ...
+class Action(metaclass=MetaAction):
+    ...
 
 
 class ActionResolver(Executable):

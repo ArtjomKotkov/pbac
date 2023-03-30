@@ -7,13 +7,12 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from tree import Group, Policy, Rule
-from const import Algorithm, Effect
-from entity import Entity
-from action import Action
-from actor import Subject, Target
-from const import Actions
-from request import PBacRequest
+from pbac import (
+    Group, Policy, Rule,
+    Algorithm, Effect, Entity,
+    Action, Subject, Target,
+    Actions, PBacRequest,
+)
 
 
 class TestModel(BaseModel):
@@ -61,9 +60,6 @@ TEST_TREE = Group(
     ],
 )
 
-
-a = Entity(UserTest)
-b = Entity(TestModel)
 
 user_simple = UserTest(id='agsdgdsgsdg23r523', role='simple', test='10')
 user_admin = UserTest(id='gsadgsadg', role='admin')

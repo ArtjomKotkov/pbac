@@ -2,12 +2,9 @@ from __future__ import annotations
 
 from typing import Any, TypeVar, Generic
 
-from modeller import SModel
-from pydantic import BaseModel
-
-from base import Executable
-from const import MODEL, PATCH_NODE
-from models import EntityPack
+from .base import Executable
+from .models import EntityPack
+from .exceptions import NotApplicable
 
 
 class Box(Executable):
@@ -96,14 +93,17 @@ class EntityOrCombiner(EntityCombiner):
 
 
 class EntityAttribute(Executable):
-    def __init__(self, model: type[MODEL], attr: str):
+    def __init__(self, model: type[Any], attr: str):
         self._model = model
         self._attr = attr
 
     def execute(self, pack: EntityPack) -> Any:
         target_entity = next((entity for entity in pack.entities if isinstance(entity, self._model)), None)
 
-        return getattr(target_entity, self._attr) if target_entity is not None else PATCH_NODE
+        if target_entity is None:
+            raise NotApplicable()
+
+        return getattr(target_entity, self._attr)
 
     def __eq__(self, other: Any) -> EntityEqualCombiner:
         return EntityEqualCombiner(self, other)

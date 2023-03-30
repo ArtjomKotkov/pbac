@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from const import *
+from .const import Effect, Algorithm
 
 
 class CombineResolver:

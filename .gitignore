@@ -2,4 +2,4 @@
 __pycache__
 *.egg-info
 build
-main.py
+test.py

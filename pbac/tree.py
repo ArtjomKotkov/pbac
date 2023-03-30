@@ -1,11 +1,12 @@
 from typing import Iterable, Self, Optional, Type
 
-from const import *
-from entity import EntityCombiner, EntityAttribute
-from actor import ActorCombiner, ActorResolver
-from request import PBacRequest
-from combine_resolver import CombineResolver
-from models import EntityPack
+from .const import Algorithm, Effect
+from .entity import EntityCombiner, EntityAttribute
+from .actor import ActorCombiner, ActorResolver
+from .exceptions import NotApplicable
+from .request import PBacRequest
+from .combine_resolver import CombineResolver
+from .models import EntityPack
 
 
 class Rule:
@@ -30,7 +31,11 @@ class Rule:
 
         pack = EntityPack(action=request.action, entities=(request.target, request.subject))
 
-        condition_decision = self._condition.execute(pack) if self._condition else Effect.NOT_APPLICABLE
+        try:
+            condition_decision = self._condition.execute(pack) if self._condition else Effect.NOT_APPLICABLE
+        except NotApplicable:
+            condition_decision = Effect.NOT_APPLICABLE
+
         if condition_decision is Effect.NOT_APPLICABLE or not condition_decision:
             return Effect.NOT_APPLICABLE
 
@@ -62,7 +67,10 @@ class Policy:
 
         pack = EntityPack(action=request.action, entities=[request.target, request.subject])
 
-        condition_decision = self._condition.execute(pack) if self._condition else Effect.NOT_APPLICABLE
+        try:
+            condition_decision = self._condition.execute(pack) if self._condition else Effect.NOT_APPLICABLE
+        except NotApplicable:
+            condition_decision = Effect.NOT_APPLICABLE
 
         if condition_decision is Effect.NOT_APPLICABLE or not condition_decision:
             return Effect.NOT_APPLICABLE

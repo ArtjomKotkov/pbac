@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from const import Actions
+from .const import Actions
 
 
 class PBacRequest(BaseModel):
