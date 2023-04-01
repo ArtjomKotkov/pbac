@@ -1,15 +1,14 @@
-from typing import Iterable, Self, Optional, Type
+from typing import Iterable, Self, Optional, Type, Any
 
+from .base import Executable
 from .const import Algorithm, Effect
 from .entity import EntityCombiner, EntityAttribute
 from .actor import ActorCombiner, ActorResolver
 from .exceptions import NotApplicable
-from .request import PBacRequest
 from .combine_resolver import CombineResolver
-from .models import EntityPack
 
 
-class Rule:
+class Rule(Executable):
     def __init__(
         self,
         _id: str,
@@ -24,15 +23,13 @@ class Rule:
         self._actors = actors
         self._condition = condition
 
-    def execute(self, request: PBacRequest) -> Effect:
-        actors_decision = self._actors.execute(request.target, request.subject) if self._actors else Effect.NOT_APPLICABLE
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Effect:
+        actors_decision = self._actors.execute(subject, target, action, context) if self._actors else Effect.NOT_APPLICABLE
         if actors_decision is Effect.NOT_APPLICABLE or not actors_decision:
             return Effect.NOT_APPLICABLE
 
-        pack = EntityPack(action=request.action, entities=(request.target, request.subject))
-
         try:
-            condition_decision = self._condition.execute(pack) if self._condition else Effect.NOT_APPLICABLE
+            condition_decision = self._condition.execute(subject, target, action, context) if self._condition else Effect.NOT_APPLICABLE
         except NotApplicable:
             condition_decision = Effect.NOT_APPLICABLE
 
@@ -42,7 +39,7 @@ class Rule:
         return self._effect
 
 
-class Policy:
+class Policy(Executable):
     def __init__(
         self,
         _id: str,
@@ -59,26 +56,27 @@ class Policy:
         self._condition = condition
         self._rules = rules if rules is not None else []
 
-    def execute(self, request: PBacRequest) -> Effect:
-        actors_decision = self._actors.execute(request.target, request.subject) if self._actors else Effect.NOT_APPLICABLE
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Effect:
+        actors_decision = self._actors.execute(subject, target, action, context) if self._actors else Effect.NOT_APPLICABLE
 
         if actors_decision is Effect.NOT_APPLICABLE or not actors_decision:
             return Effect.NOT_APPLICABLE
 
-        pack = EntityPack(action=request.action, entities=[request.target, request.subject])
-
         try:
-            condition_decision = self._condition.execute(pack) if self._condition else Effect.NOT_APPLICABLE
+            condition_decision = self._condition.execute(subject, target, action, context) if self._condition else Effect.NOT_APPLICABLE
         except NotApplicable:
             condition_decision = Effect.NOT_APPLICABLE
 
         if condition_decision is Effect.NOT_APPLICABLE or not condition_decision:
             return Effect.NOT_APPLICABLE
 
-        return CombineResolver.combine(self._algorithm, (rule.execute(request) for rule in self._rules))
+        return CombineResolver.combine(
+            self._algorithm,
+            (rule.execute(subject, target, action, context) for rule in self._rules),
+        )
 
 
-class Group:
+class Group(Executable):
     def __init__(
         self,
         _id: str,
@@ -91,5 +89,8 @@ class Group:
         self._algorithm = algorithm
         self._items = items
 
-    def execute(self, request: PBacRequest):
-        return CombineResolver.combine(self._algorithm, (item.execute(request) for item in self._items))
+    def execute(self, subject: Any, target: Any, action: str, context: Any):
+        return CombineResolver.combine(
+            self._algorithm,
+            (item.execute(subject, target, action, context) for item in self._items),
+        )

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar, Generic
+from typing import Any
 
 from .base import Executable
-from .models import EntityPack
-from .exceptions import NotApplicable
+from .exceptions import NotApplicable, UnknownActorTypeProvided
+from .const import ActorType
 
 
 class Box(Executable):
     def __init__(self, value):
         self._value = value
 
-    def execute(self, _: EntityPack):
+    def execute(self, *_, **__):
         return self._value
 
 
@@ -53,57 +53,89 @@ class EntityCombiner(Executable):
 
 
 class EntityEqualCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) == self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) == self._item2.execute(subject, target, action, context)
 
 
 class EntityNotCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) != self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) != self._item2.execute(subject, target, action, context)
 
 
 class EntityLtCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) < self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) < self._item2.execute(subject, target, action, context)
 
 
 class EntityGtCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) > self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) > self._item2.execute(subject, target, action, context)
 
 
 class EntityLeCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) <= self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) <= self._item2.execute(subject, target, action, context)
 
 
 class EntityGeCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) >= self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) >= self._item2.execute(subject, target, action, context)
 
 
 class EntityAndCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) and self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) and self._item2.execute(subject, target, action, context)
 
 
 class EntityOrCombiner(EntityCombiner):
-    def execute(self, pack: EntityPack) -> Any:
-        return self._item1.execute(pack) or self._item2.execute(pack)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(subject, target, action, context) or self._item2.execute(subject, target, action, context)
 
 
 class EntityAttribute(Executable):
-    def __init__(self, model: type[Any], attr: str):
-        self._model = model
-        self._attr = attr
+    def __init__(self, actor_type: ActorType, attrs: list[str]):
+        self._actor_type = actor_type
+        self._attrs = attrs
 
-    def execute(self, pack: EntityPack) -> Any:
-        target_entity = next((entity for entity in pack.entities if isinstance(entity, self._model)), None)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        if self._actor_type == ActorType.SUBJECT:
+            model = subject
+        elif self._actor_type == ActorType.TARGET:
+            model = target
+        elif self._actor_type == ActorType.CONTEXT:
+            model = context
+        else:
+            raise UnknownActorTypeProvided()
 
-        if target_entity is None:
+        if model is None:
             raise NotApplicable()
 
-        return getattr(target_entity, self._attr)
+        return self._get_entity_attribute(model)
+
+    def _get_entity_attribute(self, model: Any) -> Any:
+        result = model
+        # Step by attrs, and try to get attribute, if error occurs then try get item by key.
+        # If not attribute or item is not found then make decision than not applicable.
+        for attr in self._attrs:
+            try:
+                result = getattr(result, attr)
+            except AttributeError:
+                try:
+                    result = result[attr]
+                except KeyError:
+                    raise NotApplicable()
+
+        return result
+
+    def __getattribute__(self, key: str) -> Any:
+        if (
+            key.startswith('__') and key.endswith('__')
+            or key in self.__class__.__dict__.keys()
+            or key in self.__dict__.keys()
+        ):
+            return super().__getattribute__(key)
+
+        return EntityAttribute(self._actor_type, [*self._attrs, key])
 
     def __eq__(self, other: Any) -> EntityEqualCombiner:
         return EntityEqualCombiner(self, other)
@@ -128,20 +160,3 @@ class EntityAttribute(Executable):
 
     def __or__(self, other):
         return EntityOrCombiner(self, other)
-
-
-T = TypeVar('T')
-
-
-class Entity(Generic[T]):
-    def __init__(self, model: type[T]):
-        self.model = model
-
-    def __getattribute__(self, key: str) -> Any:
-        if key.startswith('__') and key.endswith('__') or key == 'model':
-            return super().__getattribute__(key)
-
-        if key in self.model.__annotations__.keys():
-            return EntityAttribute(self.model, key)
-        else:
-            return super().__getattribute__(key)

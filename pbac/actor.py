@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from typing import Any
 
 from .base import Executable
 from .const import ActorType
 from .exceptions import UnknownActorTypeProvided
-from .entity import Entity
+from .entity import EntityAttribute
 
 
 class MetaActor(type):
@@ -13,6 +13,16 @@ class MetaActor(type):
 
     def __eq__(self, other: type[Any]):
         return ActorResolver(self._actor_type, other)
+
+    def __getattribute__(self, key: str) -> Any:
+        if (
+            key.startswith('__') and key.endswith('__')
+            or key in self.__class__.__dict__.keys()
+            or key in self.__dict__.keys()
+        ):
+            return super().__getattribute__(key)
+
+        return EntityAttribute(self._actor_type, [key])
 
 
 class Actor(metaclass=MetaActor):
@@ -27,15 +37,16 @@ class Subject(Actor):
     _actor_type = ActorType.SUBJECT
 
 
-T = TypeVar('T')
+class Context(Actor):
+    _actor_type = ActorType.CONTEXT
 
 
 class ActorResolver(Executable):
-    def __init__(self, type_: ActorType, entity: Entity[T]):
+    def __init__(self, type_: ActorType, entity: Any):
         self._type = type_
-        self._model = entity.model
+        self._entity = entity
 
-    def execute(self, target: Any, subject: Any):
+    def execute(self, subject: Any, target: Any, action: str, context: Any):
         return self._is_correspond(target, subject)
 
     def _is_correspond(self, target: Any, subject: Any):
@@ -46,7 +57,11 @@ class ActorResolver(Executable):
         else:
             raise UnknownActorTypeProvided()
 
-        return isinstance(model, self._model)
+        if isinstance(model, type):
+            # If provided model is a class, we compare it with the model of the entity directly.
+            return model == self._entity
+
+        return isinstance(model, self._entity)
 
     def __and__(self, other):
         return ActorAndCombiner(self, other)
@@ -64,10 +79,10 @@ class ActorCombiner(Executable):
 
 
 class ActorAndCombiner(ActorCombiner):
-    def execute(self, target: Any, subject: Any) -> Any:
-        return self._item1.execute(target, subject) and self._item2.execute(target, subject)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(target, subject, action, context) and self._item2.execute(target, subject, action, context)
 
 
 class ActorOrCombiner(ActorCombiner):
-    def execute(self, target: Any, subject: Any) -> Any:
-        return self._item1.execute(target, subject) or self._item2.execute(target, subject)
+    def execute(self, subject: Any, target: Any, action: str, context: Any) -> Any:
+        return self._item1.execute(target, subject, action, context) or self._item2.execute(target, subject, action, context)

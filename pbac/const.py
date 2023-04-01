@@ -27,8 +27,10 @@ class Actions(StrEnum):
     WRITE = 'write'
     UPDATE = 'update'
     DELETE = 'delete'
+    ACCESS = 'access'
 
 
 class ActorType(StrEnum):
     TARGET = 'target'
     SUBJECT = 'subject'
+    CONTEXT = 'context'
